@@ -19,7 +19,17 @@ llm = ChatOpenAI(
 )
 
 # =========================
-# 节点 1：意图判断（LLM 版）
+# 节点 1：用户输入大纲提示词
+# =========================
+def input_system_prompt(state: GraphState) -> GraphState:
+    """让用户输入自定义提示词"""
+    prompt = input("请输入自定义提示词: ").strip()
+    state["user_input"] = prompt if prompt else None
+    return state
+
+
+# =========================
+# 节点 2：意图判断（LLM 版）
 # =========================
 def classify_intent(state: GraphState) -> GraphState:
     """
@@ -63,7 +73,7 @@ def classify_intent(state: GraphState) -> GraphState:
 
 
 # =========================
-# 节点 2：处理问题
+# 节点 3：处理问题
 # =========================
 def handle_question(state: GraphState) -> GraphState:
     state["response"] = "我判断这是一个【问题】，后续可以进入正式问答流程。"
@@ -71,7 +81,7 @@ def handle_question(state: GraphState) -> GraphState:
 
 
 # =========================
-# 节点 3：处理聊天
+# 节点 4：处理聊天
 # =========================
 def handle_chat(state: GraphState) -> GraphState:
     state["response"] = "我判断这是【聊天】，可以轻松一点回复。"

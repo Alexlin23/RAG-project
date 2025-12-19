@@ -5,7 +5,8 @@ app = build_graph()
 # 初始化 state（所有字段都要给）
 initial_state = {
     "user_input": "",
-    "intent": None,
+    "first_time": True,
+    "prompts_message": None,
     "response": None,
 }
 

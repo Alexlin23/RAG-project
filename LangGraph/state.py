@@ -1,10 +1,11 @@
-from typing import TypedDict, Optional
+from typing import TypedDict, Optional, List, Dict
 
 class GraphState(TypedDict):
     """
     整个 LangGraph 流程中共享的状态数据
     所有 node 只能通过它来读写信息
     """
-    user_input: str            # 用户原始输入
-    intent: Optional[str]      # 判断出的意图：question / chat
-    response: Optional[str]    # 最终要返回给用户的内容
+    user_input: str            # 用户输入
+    first_time: bool           # 是否第一次调用
+    prompts_message: Optional[List[Dict[str, str]]]    # 消息列表
+    response: Optional[str]        # LLM 的响应

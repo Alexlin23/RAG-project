@@ -116,6 +116,7 @@ def outline_human_intervention(state: GraphState) -> GraphState:
     
     if state["user_input"].lower() == "y":
         state["first_time"] = True
+        state["chapter_progress"] += outline_length # 增加章节进度
     else:
         # 将response作为ai回复，用户输入作为新的user_input追加到prompts_message
         state["prompts_message"].append({"role": "assistant", "content": state["response"]})

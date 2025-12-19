@@ -6,14 +6,29 @@ from nodes import (
     handle_chat,
 )
 
+
+
+# 时间检测器
+import time
+def timed_node(name, func):
+    def wrapper(state):
+        start = time.time()
+        result = func(state)
+        print(f"[{name}] 耗时: {time.time() - start:.3f}s")
+        return result
+    return wrapper
+
 def build_graph():
     # 1. 创建一个基于 GraphState 的状态图
     graph = StateGraph(GraphState)
 
     # 2. 注册所有节点
-    graph.add_node("classify_intent", classify_intent)
-    graph.add_node("handle_question", handle_question)
-    graph.add_node("handle_chat", handle_chat)
+    # graph.add_node("classify_intent", classify_intent)
+    # graph.add_node("handle_question", handle_question)
+    # graph.add_node("handle_chat", handle_chat)
+    graph.add_node("classify_intent", timed_node("classify_intent", classify_intent))
+    graph.add_node("handle_question", timed_node("handle_question", handle_question))
+    graph.add_node("handle_chat", timed_node("handle_chat", handle_chat))
 
     # 3. 设置入口节点
     graph.set_entry_point("classify_intent")

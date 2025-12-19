@@ -47,11 +47,14 @@ OUTLINE_SYSTEM_PROMPT = f"""你是一位专业的网文小说作家，擅长撰�
 
 【大纲要求】
 1. 每次生成{outline_length}章内容的大纲
-2. 大纲篇幅至少为{outline_length * chapter_length * 0.1}字
+2. 大纲篇幅至少为{outline_length * chapter_length * 0.3}字
 3. 不需要解释，不包含章节标题，不要按章节分段
 4. 连贯地写下来，保持情节流畅
 5. 承接已有大纲的剧情，保证前后伏笔一致
 6. 可拓展世界观，但不能与已有设定冲突
+7. 情节不要写太细致，只写大体框架
+8. 写清楚地点，设定，技能，角色名称以及那些特殊设定名词
+9. 检查字数一定要符合标准
 
 请直接输出大纲内容，不要包含任何额外的说明或标题。"""
 
@@ -62,10 +65,20 @@ def concat_prompt(state: GraphState) -> GraphState:
         outline_dir = os.path.join(os.path.dirname(__file__), "..", "data", "outline")
         outline_contents = read_all_texts_in_dir(outline_dir)
         outline_text = "\n\n".join(outline_contents)
-        # 结合大纲和用户输入生成首次提示词（DeepSeek 格式）
+        
+        # 读取全部设定集
+        worldguide_dir = os.path.join(os.path.dirname(__file__), "..", "data", "WorldGuide")
+        if os.path.isdir(worldguide_dir):
+            worldguide_contents = read_all_texts_in_dir(worldguide_dir)
+            worldguide_text = "\n\n".join(worldguide_contents)
+        else:
+            worldguide_text = ""
+        
+        # 结合大纲、设定集和用户输入生成首次提示词（DeepSeek 格式）
         state["prompts_message"] = [
             {"role": "system", "content": OUTLINE_SYSTEM_PROMPT},
             {"role": "user", "content": f"过去章节的大纲：\n{outline_text}"},
+            {"role": "user", "content": f"全部设定集：\n{worldguide_text}"},
             {"role": "user", "content": state["user_input"]}
         ]
     else:
@@ -81,7 +94,7 @@ def generate_outline(state: GraphState) -> GraphState:
     """调用 LLM 生成大纲"""
     response = llm.invoke(state["prompts_message"])
     state["response"] = response.content
-    print(state["response"])
+    
     state["first_time"] = False
     
     outline_dir = os.path.join(os.path.dirname(__file__), "..", "data", "outline")
@@ -103,7 +116,102 @@ def outline_human_intervention(state: GraphState) -> GraphState:
     
     if state["user_input"].lower() == "y":
         state["first_time"] = True
-        state["chapter_progress"] += outline_length
+    else:
+        # 将response作为ai回复，用户输入作为新的user_input追加到prompts_message
+        state["prompts_message"].append({"role": "assistant", "content": state["response"]})
+    
+    return state
+
+
+# =========================
+# 节点 5：设定集提示词拼接
+# =========================
+# 系统提示词（设定集生成指令）
+WORLDGUIDE_SYSTEM_PROMPT = """你是一位专业的网文小说作家，擅长构建完整的世界观和角色设定。
+
+【设定集要求】
+1. 根据大纲内容提取并补充世界观、角色、势力、道具等设定
+2. 设定要详细且符合剧情发展需要
+3. 新设定不能与已有设定冲突，如有冲突优先改动新设定
+4. 设定可拓展，但要保持一致性
+5. 设定格式清晰，便于后续参考
+
+请直接输出设定集内容，不要包含任何额外的说明。"""
+
+
+def concat_worldguide_prompt(state: GraphState) -> GraphState:
+    """拼接设定集生成提示词，使用 DeepSeek 消息格式"""
+    
+    # 1. 读取最新大纲（当前批次：chapter_progress 到 chapter_progress+outline_length-1）
+    outline_dir = os.path.join(os.path.dirname(__file__), "..", "data", "outline")
+    latest_outline_file = os.path.join(
+        outline_dir,
+        f"outline_{state['chapter_progress']-outline_length}-{state['chapter_progress']-1}.txt"
+    ) # 最新大纲文件路径
+    if os.path.exists(latest_outline_file):
+        with open(latest_outline_file, "r", encoding="utf-8") as f: # 检查文件是否存在
+            latest_outline = f.read() # 读取最新大纲文件内容
+    else:
+        latest_outline = ""
+    
+    # 2. 读取过往设定集
+    worldguide_dir = os.path.join(os.path.dirname(__file__), "..", "data", "WorldGuide")
+    if os.path.isdir(worldguide_dir): # 检查文件夹是否存在
+        worldguide_contents = read_all_texts_in_dir(worldguide_dir) # 读取所有文本文件内容
+        past_worldguide = "\n\n".join(worldguide_contents) # 将所有设定集内容用双换行符连接
+    else:
+        past_worldguide = ""
+    
+    # 3. 构建消息列表（system放指令，user放动态内容）
+    if state["first_time"] is True:
+        # 首次调用：构建完整消息列表
+        state["prompts_message"] = [
+            {"role": "system", "content": WORLDGUIDE_SYSTEM_PROMPT},
+            {"role": "user", "content": f"【过往设定集】\n{past_worldguide}"},
+            {"role": "user", "content": f"【最新大纲】\n{latest_outline}"},
+            {"role": "user", "content": state["user_input"]}
+        ]
+    else:
+        # 非首次：将 user_input 追加到 messages 列表
+        state["prompts_message"].append({"role": "user", "content": state["user_input"]})
+    
+    return state
+
+
+# =========================
+# 节点 6：设定集生成（LLM）
+# =========================
+def generate_worldguide(state: GraphState) -> GraphState:
+    """调用 LLM 生成设定集"""
+    response = llm.invoke(state["prompts_message"])
+    state["response"] = response.content
+    
+    state["first_time"] = False
+    
+    # 保存设定集文件
+    worldguide_dir = os.path.join(os.path.dirname(__file__), "..", "data", "WorldGuide")
+    os.makedirs(worldguide_dir, exist_ok=True)  # 确保目录存在
+    
+    worldguide_file = os.path.join(
+        worldguide_dir,
+        f"worldguide_{state['chapter_progress']}-{state['chapter_progress']+outline_length-1}.txt"
+    )
+    with open(worldguide_file, "w", encoding="utf-8") as f:
+        f.write(state["response"])
+    
+    print("设定集已生成")
+    return state
+
+
+# =========================
+# 节点 7：设定集人工干预
+# =========================
+def worldguide_human_intervention(state: GraphState) -> GraphState:
+    """人工干预节点：用户输入y进入下一流程，输入其他文本作为反馈追加到消息列表"""
+    state["user_input"] = input("请输入指令(输入'y'确认进入下一流程, 'quit'退出, 或输入其他文本作为反馈): ").strip()
+    
+    if state["user_input"].lower() == "y":
+        state["first_time"] = True
     else:
         # 将response作为ai回复，用户输入作为新的user_input追加到prompts_message
         state["prompts_message"].append({"role": "assistant", "content": state["response"]})

@@ -1,0 +1,5 @@
+# data和缓存
+data/
+.cache/
+__pycache__/
+.env

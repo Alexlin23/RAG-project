@@ -18,6 +18,13 @@ with get_checkpointer() as checkpointer:
         print(f"检测到上次运行状态，从节点 {saved_state.next} 继续...")
         print(f"章节进度: {saved_state.values.get('chapter_progress', 1)}")
         result = app.invoke(None, thread_config)
+    elif saved_state.values and saved_state.values.get('chapter_progress', 1) != 1 and not saved_state.next:
+        # 有保存的状态但next为空（quit退出的情况），直接从节点1继续
+        print(f"检测到上次运行状态（已正常退出），章节进度: {saved_state.values.get('chapter_progress', 1)}")
+        # 使用 update_state 将下一个节点设置为入口点
+        app.update_state(thread_config, saved_state.values, as_node="__start__")
+        print("从节点1继续...")
+        result = app.invoke(None, thread_config)
     else:
         # 无保存状态，从头开始
         print("无保存状态，从头开始...")

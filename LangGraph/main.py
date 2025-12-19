@@ -8,6 +8,7 @@ initial_state = {
     "first_time": True,
     "prompts_message": None,
     "response": None,
+    "chapter_progress": 1,
 }
 
 result = app.invoke(initial_state)

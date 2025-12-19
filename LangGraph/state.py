@@ -9,3 +9,4 @@ class GraphState(TypedDict):
     first_time: bool           # 是否第一次调用
     prompts_message: Optional[List[Dict[str, str]]]    # 消息列表
     response: Optional[str]        # LLM 的响应
+    chapter_progress: Optional[int] # 章节进度

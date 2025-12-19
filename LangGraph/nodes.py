@@ -23,6 +23,13 @@ llm = ChatOpenAI(
 )
 
 # =========================
+# 3. 初始化参数
+# =========================
+outline_length = 10 # 大纲长度，每次生成10章内容的大纲
+chapter_length = 3000 # 章节长度，每次生成3000字的内容
+
+
+# =========================
 # 节点 1：用户输入提示词
 # =========================
 def input_system_prompt(state: GraphState) -> GraphState:
@@ -36,11 +43,11 @@ def input_system_prompt(state: GraphState) -> GraphState:
 # 节点 2：拼接提示词（大纲）
 # =========================
 # 系统提示词（大纲生成指令）
-OUTLINE_SYSTEM_PROMPT = """你是一位专业的网文小说作家，擅长撰写超长篇小说大纲。
+OUTLINE_SYSTEM_PROMPT = f"""你是一位专业的网文小说作家，擅长撰写超长篇小说大纲。
 
 【大纲要求】
-1. 每次生成15章内容的大纲
-2. 大纲篇幅至少为这批章节总正文的30%（约 13500 字）
+1. 每次生成{outline_length}章内容的大纲
+2. 大纲篇幅至少为{outline_length * chapter_length * 0.1}字
 3. 不需要解释，不包含章节标题，不要按章节分段
 4. 连贯地写下来，保持情节流畅
 5. 承接已有大纲的剧情，保证前后伏笔一致
@@ -58,7 +65,7 @@ def concat_prompt(state: GraphState) -> GraphState:
         # 结合大纲和用户输入生成首次提示词（DeepSeek 格式）
         state["prompts_message"] = [
             {"role": "system", "content": OUTLINE_SYSTEM_PROMPT},
-            {"role": "user", "content": f"过去章节大纲：\n{outline_text}"},
+            {"role": "user", "content": f"过去章节的大纲：\n{outline_text}"},
             {"role": "user", "content": state["user_input"]}
         ]
     else:
@@ -76,6 +83,12 @@ def generate_outline(state: GraphState) -> GraphState:
     state["response"] = response.content
     print(state["response"])
     state["first_time"] = False
+    
+    outline_dir = os.path.join(os.path.dirname(__file__), "..", "data", "outline")
+    with open(os.path.join(outline_dir,
+     f"outline_{state['chapter_progress']}-{state['chapter_progress']+outline_length-1}.txt"),
+     "w", encoding="utf-8") as f:
+        f.write(state["response"])
 
     print("大纲已生成")
     return state
@@ -86,10 +99,11 @@ def generate_outline(state: GraphState) -> GraphState:
 # =========================
 def outline_human_intervention(state: GraphState) -> GraphState:
     """人工干预节点：用户输入y重新生成，输入其他文本作为反馈追加到消息列表"""
-    state["user_input"] = input("请输入指令(输入'y'重新生成，或输入其他文本作为反馈): ").strip()
+    state["user_input"] = input("请输入指令(输入'y'重新生成, 'quit'退出, 或输入其他文本作为反馈): ").strip()
     
     if state["user_input"].lower() == "y":
         state["first_time"] = True
+        state["chapter_progress"] += outline_length
     else:
         # 将response作为ai回复，用户输入作为新的user_input追加到prompts_message
         state["prompts_message"].append({"role": "assistant", "content": state["response"]})
